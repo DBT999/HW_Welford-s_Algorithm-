@@ -1,0 +1,1 @@
+This calculates a rolling variance over all arriving elements. The elements are MATRIX_SIZEx1 vectors. The mean is computed with each arriving element. The variance of each element is computed when compute_variance goes high. The total variance is also computed at the same time.
