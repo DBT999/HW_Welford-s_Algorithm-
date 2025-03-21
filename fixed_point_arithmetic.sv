@@ -18,7 +18,7 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-`include "constants.v"
+`include "constants.vh"
 
 package fixed_point_functions;
 
