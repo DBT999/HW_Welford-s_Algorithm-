@@ -27,9 +27,9 @@ integer fp_out_mag;
 
 reg [`N-1:0] max_num_mult;
 
-
-
-
+/*
+convert_to_real -- Used for printing out fixed point numbers in debug statements, ('real' does not synthesize)
+*/
 function real convert_to_real(input [`N-1:0] a);
 real y;
 begin
@@ -44,15 +44,19 @@ begin
 end 
 endfunction
 
+
+/*
+abs -- Fixed point absolute value
+*/
 function [`N-1:0] abs(input [`N-1:0] a);
 begin
-    if(a[`N-1]==1)
-       abs = -a;
-    else
-       abs = a;
+    abs = (a[`N-1]==1) ? -a : a;
 end
 endfunction
 
+/*
+absmax -- Fixed point absolute value
+*/
 function [`N-1:0] absmax(input [`N-1:0] a, input [`N-1:0] b);
 reg [`N-1:0] y;
 begin
@@ -63,8 +67,9 @@ else
 absmax = y;
 end
 endfunction
+
 /*
-Function to Count the number of leading zeros of the input
+clz -- Counts the number of leading zeros of the input
 */
 function [5:0] clz(input [`N-1:0] a);
    integer i;
@@ -91,38 +96,29 @@ endfunction
 /*
 Function to multiply the two inputs
 */
-function [`N-1:0] mult(input [`N-1:0] aa, input [`N-1:0] bb);
+function [`N-1:0] mult(input [`N-1:0] a, input [`N-1:0] b);
 reg [2*`N-1:0] y;
-reg [`N-1:0] a;
-reg [`N-1:0] b;
+reg [`N-1:0] mag_a;
+reg [`N-1:0] mag_b;
 reg s_a;
 reg s_b;
 begin
    y = 0;
-   if((aa != 0) && (bb != 0))
-   begin
-   a = aa;
-   b = bb;
-   s_a = a[`N-1];
-   s_b = b[`N-1];
-  // $fwrite(fp_out_mag, "In mult a=%d[%b], b=%d[%b], y=%d[%b], s_a=%d, s_b=%d\n", a, a, b, b, y, y,  s_a, s_b);
+   if((a != 0) && (b != 0))
+       begin
 
-   if(s_a == 1)
-   begin
-       a = -a;
-   end
-   
-   if(s_b == 1)
-   begin
-       b = -b;
-   end   
-   
-   y = a * b;
-   if(y[2*`N-1:`Q] == 0)
-   begin
-       $fwrite(fp_out_mag, "In mult -- zero-after-mult - a: %b, b: %b, y: %b, discarded-y: %b\n", a, b, y[2*`N-1:`Q], y[`Q-1:0]);
-   end
-   y = y >> `Q;
+       s_a = a[`N-1];
+       s_b = b[`N-1];
+
+       mag_a = abs(a);
+       mag_b = abs(b);
+       
+       y = mag_a * mag_b;
+       if(y[2*`N-1:`Q] == 0)
+       begin
+           $fwrite(fp_out_mag, "In mult -- zero-after-mult - a: %b, b: %b, y: %b, discarded-y: %b\n", mag_a, mag_b, y[2*`N-1:`Q], y[`Q-1:0]);
+       end
+       y = y >> `Q;
        
 
       if((s_a ^ s_b) == 1)
@@ -132,6 +128,44 @@ begin
    end
    max_num_mult = absmax(max_num_mult, y[`N-1:0]);
    mult = y[`N-1:0];// >> Q;
+end
+endfunction
+
+
+/*
+ext_mult - Function to multiply the two inputs and return the result prior to shifting
+*/
+function [2*`N-1:0] ext_mult(input [`N-1:0] a, input [`N-1:0] b);
+reg [2*`N-1:0] y;
+reg [`N-1:0] mag_a;
+reg [`N-1:0] mag_b;
+reg s_a;
+reg s_b;
+begin
+   y = 0;
+   
+   if((a != 0) && (b != 0))
+   begin
+       s_a = a[`N-1];
+       s_b = b[`N-1];
+       
+       mag_a = abs(a);
+       mag_b = abs(b);
+       
+       y = mag_a * mag_b;
+       if(y[2*`N-1:`Q] == 0)
+       begin
+           $fwrite(fp_out_mag, "In mult -- zero-after-ext-mult - a: %b, b: %b, y: %b\n", mag_a, mag_b, y[2*`N-1:`Q]);
+       end
+           
+    
+      if((s_a ^ s_b) == 1)
+      begin
+         y = -y;
+      end
+   end
+   max_num_mult = absmax(max_num_mult, y[`N-1:0]);
+   ext_mult = y;
 end
 endfunction
 
@@ -171,24 +205,24 @@ function [`N-1:0] div (input [`N-1:0] u, input [`N-1:0] a);
         
         quotient_sign = a[`N-1] ^ u[`N-1];
         
-        mag_a = a;
-        mag_u = u;
+        mag_a = abs(a);
+        mag_u = abs(u);
         
-        if (a[`N-1] == 1)
-        begin
-           mag_a = -mag_a;
-        end
+//        if (a[`N-1] == 1)
+//        begin
+//           mag_a = -mag_a;
+//        end
         
-        if(u[`N-1] == 1)
-        begin
-           mag_u = -mag_u;
-        end
+//        if(u[`N-1] == 1)
+//        begin
+//           mag_u = -mag_u;
+//        end
         
      
-        
+        // Get the number of leading zeroes
         num_leading_zeros = clz(mag_a);
         
-        
+        // Shift according to the number of zeroes
         if(num_leading_zeros > (`N-`Q-1))
         begin
             mag_a = mag_a << (num_leading_zeros-(`N-`Q-1));
@@ -203,7 +237,6 @@ function [`N-1:0] div (input [`N-1:0] u, input [`N-1:0] a);
         end
         
         
-        //$fwrite(fp_out_mag, "mag_a after shift: mag_a: [%b]\n", mag_a);
         case(`Q)
            8: msb_fraction = mag_a[`Q-1:`Q-3];
           16: msb_fraction = mag_a[`Q-1:`Q-4];
@@ -471,9 +504,7 @@ begin
     
     // Zero out the fractional components
     y[`Q-1:0] = 0;
-    
-    // Fix the sign of a if needed
-    
+        
     // If a is negative, revert the sign back
     if(a[`N-1] == 1)
     begin
